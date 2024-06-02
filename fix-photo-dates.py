@@ -1,29 +1,38 @@
 #!/usr/bin/env python3
 import sys
 import os
-def fix(f):
+import re
+import dateparser
 
-  if f.startswith("VID_") or f.startswith("IMG_"):
-    os.rename(f,f[4:])
-    f = f[4:]
-  
-  year = f[0:4]
-  month = f[4:6]
-  day = f[6:8]
-  hour = f[9:11]
-  min = f[11:13]
-  sec = f[13:15]
-  print("year={0} month={1} day={2} hour={3} min={4} sec={5}".format(year, month, day, hour, min, sec))
 
-  date = "{0}:{1}:{2} {3}:{4}:{5}".format(year,month,day,hour,min,sec)
-  cmd = "exiftool -overwrite_original \"-AllDates={0}\" \"{1}\"".format(date, f)
-  print(cmd)
-  os.system(cmd)  
+def fix_whatsapp(f):
 
-  date = "{0}/{1}/{2} {3}:{4}:{5}".format(month,day,year,hour,min,sec)
-  cmd = "SetFile -m  \"{0}\" \"{1}\"".format(date, f)
-  print(cmd)
-  os.system(cmd)
+    pattern = re.compile(r"IMG-([0-9]+)-WA[0-9]+")
+    match = re.match(pattern, f)
+    if match is None or match.group(1) is None:
+        continue
+    date = dateparser.parse(match.group(1), date_formats=["%Y%m%d"])
+    print("Parsed date for file=%s date=%s" % (f, date))
+    if date is None:
+        print("Couldn't parse date for file=%s" % f)
+        continue
 
-for f in sys.argv[1:]:
-  fix(os.path.basename(f))
+    date = "{0}:{1}:{2} {3}:{4}:{5}".format(
+        date.year, date.month, date.day, date.hour, date.minute, date.second
+    )
+    cmd = 'exiftool -overwrite_original "-AllDates={0}" "{1}"'.format(date, f)
+    print("Fixing with command=%s" % cmd)
+    os.system(cmd)
+
+    date = "{0}/{1}/{2} {3}:{4}:{5}".format(
+        date.year, date.month, date.day, date.hour, date.minute, date.second
+    )
+    cmd = 'SetFile -m  "{0}" "{1}"'.format(date, f)
+    print("Fixing with command=%s" % cmd)
+    os.system(cmd)
+
+
+for root in sys.argv[1:]:
+    for curr_dir, dirs, files in os.walk(root):
+        for file in files:
+            fix_whatsapp(os.path.basename(curr_dir + os.sep + file))
